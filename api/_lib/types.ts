@@ -125,6 +125,47 @@ const PH_COORD_BOUNDS = {
   lngMax: 127.3,
 };
 
+function parsePointText(wkt: string): [number, number] | undefined {
+  const match = /POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i.exec(wkt);
+  if (!match) return undefined;
+  const lng = parseFloat(match[1]);
+  const lat = parseFloat(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+  return [lat, lng];
+}
+
+function parseWkbPoint(hex: string): [number, number] | undefined {
+  const clean = hex.trim();
+  if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length < 18 || clean.length % 2 !== 0) {
+    return undefined;
+  }
+
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.slice(i, i + 2), 16);
+  }
+
+  const dv = new DataView(bytes.buffer);
+  let offset = 0;
+  const byteOrder = dv.getUint8(offset);
+  offset += 1;
+  const littleEndian = byteOrder === 1;
+  const type = dv.getUint32(offset, littleEndian);
+  offset += 4;
+
+  const hasSrid = (type & 0x20000000) !== 0;
+  const geomType = type & 0x000000ff;
+  if (geomType !== 1) return undefined;
+  if (hasSrid) {
+    offset += 4;
+  }
+  if (offset + 16 > dv.byteLength) return undefined;
+  const x = dv.getFloat64(offset, littleEndian);
+  const y = dv.getFloat64(offset + 8, littleEndian);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined;
+  return [y, x];
+}
+
 function normalizeLatLng(coords: [number, number]): [number, number] {
   const [a, b] = coords;
   const aLat = a >= PH_COORD_BOUNDS.latMin && a <= PH_COORD_BOUNDS.latMax;
@@ -146,17 +187,22 @@ export function dbRecordToUserReport(record: CommunityReportRecord): UserReport 
     try {
       // Handle WKT string or GeoJSON-like object formats
       if (typeof record.coordinates === 'string') {
-        if (record.coordinates.startsWith('POINT')) {
-          // WKT format: "POINT(lng lat)"
-          const match = /POINT\(([^ ]+) ([^ ]+)\)/.exec(record.coordinates);
-          if (match) {
-            coordinates = [parseFloat(match[2]), parseFloat(match[1])]; // [lat, lng]
+        if (record.coordinates.startsWith('POINT') || record.coordinates.startsWith('SRID=')) {
+          // WKT/EWKT format: "POINT(lng lat)" or "SRID=4326;POINT(lng lat)"
+          const parsed = parsePointText(record.coordinates);
+          if (parsed) {
+            coordinates = parsed;
           }
         } else if (record.coordinates.startsWith('{')) {
           // GeoJSON string
           const geojson = JSON.parse(record.coordinates);
           if (geojson.type === 'Point' && Array.isArray(geojson.coordinates)) {
             coordinates = [geojson.coordinates[1], geojson.coordinates[0]]; // [lat, lng]
+          }
+        } else {
+          const parsed = parseWkbPoint(record.coordinates);
+          if (parsed) {
+            coordinates = parsed;
           }
         }
       } else if (typeof record.coordinates === 'object' && record.coordinates !== null) {
