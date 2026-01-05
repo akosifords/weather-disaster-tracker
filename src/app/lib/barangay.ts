@@ -24,6 +24,12 @@ const PSA_BRGY_ARCGIS_QUERY_URL =
   'https://portal.georisk.gov.ph/arcgis/rest/services/PSA/Barangay/MapServer/4/query';
 
 const cache = new Map<string, ResolvedBarangay | null>();
+const cityCache = new Map<string, string[]>();
+const barangayCache = new Map<string, string[]>();
+
+function escapeSqlString(value: string) {
+  return value.replace(/'/g, "''");
+}
 
 function inPhilippinesBounds(lat: number, lng: number) {
   return (
@@ -110,6 +116,60 @@ export async function resolveBarangayFromCoords(
   return res.status === 'hit' ? res.data : null;
 }
 
+export async function fetchCityOptions(opts?: { signal?: AbortSignal }): Promise<string[]> {
+  const cacheKey = 'cities';
+  if (cityCache.has(cacheKey)) return cityCache.get(cacheKey) ?? [];
+
+  const params = new URLSearchParams({
+    f: 'json',
+    where: '1=1',
+    outFields: 'city_name',
+    returnDistinctValues: 'true',
+    orderByFields: 'city_name',
+    returnGeometry: 'false',
+  });
+
+  const url = `${PSA_BRGY_ARCGIS_QUERY_URL}?${params.toString()}`;
+  const resp = await fetch(url, { mode: 'cors', credentials: 'include', signal: opts?.signal });
+  if (!resp.ok) return [];
+  const json = (await resp.json()) as any;
+  const values = (json?.features ?? [])
+    .map((f: any) => f?.attributes?.city_name)
+    .filter((name: any): name is string => typeof name === 'string' && name.trim().length > 0);
+  const unique = Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  cityCache.set(cacheKey, unique);
+  return unique;
+}
+
+export async function fetchBarangayOptions(
+  cityName: string,
+  opts?: { signal?: AbortSignal },
+): Promise<string[]> {
+  if (!cityName) return [];
+  const cacheKey = cityName.trim().toLowerCase();
+  if (barangayCache.has(cacheKey)) return barangayCache.get(cacheKey) ?? [];
+
+  const params = new URLSearchParams({
+    f: 'json',
+    where: `city_name='${escapeSqlString(cityName)}'`,
+    outFields: 'brgy_name',
+    returnDistinctValues: 'true',
+    orderByFields: 'brgy_name',
+    returnGeometry: 'false',
+  });
+
+  const url = `${PSA_BRGY_ARCGIS_QUERY_URL}?${params.toString()}`;
+  const resp = await fetch(url, { mode: 'cors', credentials: 'include', signal: opts?.signal });
+  if (!resp.ok) return [];
+  const json = (await resp.json()) as any;
+  const values = (json?.features ?? [])
+    .map((f: any) => f?.attributes?.brgy_name)
+    .filter((name: any): name is string => typeof name === 'string' && name.trim().length > 0);
+  const unique = Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  barangayCache.set(cacheKey, unique);
+  return unique;
+}
+
 export function formatBarangayLocation(r: Pick<UserReport, 'barangay' | 'city' | 'province' | 'region' | 'location'>) {
   const parts = [r.barangay, r.city, r.province].filter(Boolean);
   if (parts.length > 0) return parts.join(', ');
@@ -119,5 +179,4 @@ export function formatBarangayLocation(r: Pick<UserReport, 'barangay' | 'city' |
 export function coordsForReport(report: Pick<UserReport, 'coordinates' | 'location'>): [number, number] {
   return report.coordinates ?? getApproxCoordinates(report.location);
 }
-
 

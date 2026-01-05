@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Send, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Checkbox } from './ui/checkbox';
 import type { AlertType, AlertSeverity } from './DisasterAlerts';
+import { fetchBarangayOptions, fetchCityOptions, resolveBarangayFromCoordsDetailed } from '../lib/barangay';
 
 export interface UserReport {
   id: string;
@@ -51,8 +51,7 @@ interface ReportFormProps {
 }
 
 export function ReportForm({ onSubmit }: ReportFormProps) {
-  const [reporterName, setReporterName] = useState('');
-  const [location, setLocation] = useState('');
+  const [city, setCity] = useState('');
   const [barangay, setBarangay] = useState('');
   const [type, setType] = useState<AlertType>('other');
   const [severity, setSeverity] = useState<AlertSeverity>('low');
@@ -61,6 +60,35 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [gpsError, setGpsError] = useState('');
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [barangayLoading, setBarangayLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setCityLoading(true);
+    fetchCityOptions({ signal: ctrl.signal })
+      .then((options) => setCityOptions(options))
+      .catch(() => setCityOptions([]))
+      .finally(() => setCityLoading(false));
+    return () => ctrl.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!city) {
+      setBarangayOptions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setBarangayLoading(true);
+    fetchBarangayOptions(city, { signal: ctrl.signal })
+      .then((options) => setBarangayOptions(options))
+      .catch(() => setBarangayOptions([]))
+      .finally(() => setBarangayLoading(false));
+    return () => ctrl.abort();
+  }, [city]);
 
   const handleUseGps = () => {
     if (!navigator.geolocation) {
@@ -71,13 +99,31 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
 
     setGpsStatus('loading');
     setGpsError('');
+    setFormError('');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const lat = Number(pos.coords.latitude.toFixed(5));
         const lng = Number(pos.coords.longitude.toFixed(5));
         setCoordinates([lat, lng]);
-        setLocation(`Near ${lat}, ${lng}`);
+        try {
+          const resolved = await resolveBarangayFromCoordsDetailed([lat, lng]);
+          if (resolved.status === 'hit' && resolved.data.city && resolved.data.barangay) {
+            setCity((prev) => (prev ? prev : resolved.data.city ?? ''));
+            setBarangay((prev) => (prev ? prev : resolved.data.barangay ?? ''));
+            setCityOptions((prev) =>
+              resolved.data.city && !prev.includes(resolved.data.city) ? [resolved.data.city, ...prev] : prev,
+            );
+            setBarangayOptions((prev) =>
+              resolved.data.barangay && !prev.includes(resolved.data.barangay) ? [resolved.data.barangay, ...prev] : prev,
+            );
+            setGpsStatus('ready');
+            return;
+          }
+        } catch {
+          // Ignore lookup errors and let the user choose manually.
+        }
         setGpsStatus('ready');
+        setGpsError('GPS found. Please choose your city and barangay.');
       },
       (err) => {
         setGpsStatus('error');
@@ -90,16 +136,16 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const resolvedLocation = location.trim() || barangay.trim();
-
-    if (!reporterName || !resolvedLocation || !description) {
+    if (!city || !barangay || !description) {
+      setFormError('Please choose your city and barangay, then add a short description.');
       return;
     }
 
     onSubmit({
-      reporterName,
-      location: resolvedLocation,
-      barangay: barangay.trim() || undefined,
+      reporterName: 'Anonymous',
+      location: `${barangay.trim()}, ${city.trim()}`,
+      barangay: barangay.trim(),
+      city: city.trim(),
       type,
       severity,
       description,
@@ -108,8 +154,7 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
     });
 
     // Reset form
-    setReporterName('');
-    setLocation('');
+    setCity('');
     setBarangay('');
     setType('other');
     setSeverity('low');
@@ -118,6 +163,7 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
     setCoordinates(undefined);
     setGpsStatus('idle');
     setGpsError('');
+    setFormError('');
   };
 
   return (
@@ -134,63 +180,110 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
       </CardHeader>
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Your Name</Label>
-              <Input
-                id="name"
-                value={reporterName}
-                onChange={(e) => setReporterName(e.target.value)}
-                placeholder="John Doe"
-                required
-                className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
-              />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="city">City / Municipality</Label>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleUseGps}
+                disabled={gpsStatus === 'loading'}
+                className="h-7 px-2 text-xs"
+              >
+                {gpsStatus === 'loading' ? 'Locating…' : 'Use GPS'}
+              </Button>
             </div>
+            <Select
+              value={city}
+              onValueChange={(value) => {
+                setCity(value);
+                setBarangay('');
+                setFormError('');
+              }}
+            >
+              <SelectTrigger id="city" className="bg-neutral-900 border-neutral-800 text-white">
+                <SelectValue placeholder={cityLoading ? 'Loading cities…' : 'Select city'} />
+              </SelectTrigger>
+              <SelectContent>
+                {cityLoading ? (
+                  <SelectItem value="loading" disabled>
+                    Loading…
+                  </SelectItem>
+                ) : cityOptions.length === 0 ? (
+                  <SelectItem value="empty" disabled>
+                    No cities available
+                  </SelectItem>
+                ) : (
+                  cityOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {gpsStatus === 'ready' && !gpsError && (
+              <p className="text-xs text-emerald-300">GPS checked.</p>
+            )}
+            {gpsError && (
+              <p className={`text-xs ${gpsStatus === 'error' ? 'text-red-300' : 'text-amber-300'}`}>
+                {gpsError}
+              </p>
+            )}
+          </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="location">Location</Label>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleUseGps}
-                  disabled={gpsStatus === 'loading'}
-                  className="h-7 px-2 text-xs"
-                >
-                  {gpsStatus === 'loading' ? 'Locating…' : 'Use GPS'}
-                </Button>
-              </div>
-              <Input
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="City or street"
-                required={barangay.trim() === ''}
-                className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
-              />
-              {gpsStatus === 'ready' && (
-                <p className="text-xs text-emerald-300">GPS location added.</p>
-              )}
-              {gpsStatus === 'error' && gpsError && (
-                <p className="text-xs text-red-300">{gpsError}</p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="barangay">Barangay</Label>
+            <Select
+              value={barangay}
+              onValueChange={(value) => {
+                setBarangay(value);
+                setFormError('');
+              }}
+            >
+              <SelectTrigger
+                id="barangay"
+                className="bg-neutral-900 border-neutral-800 text-white"
+                disabled={!city || barangayLoading}
+              >
+                <SelectValue
+                  placeholder={
+                    !city
+                      ? 'Choose city first'
+                      : barangayLoading
+                        ? 'Loading barangays…'
+                        : 'Select barangay'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {!city ? (
+                  <SelectItem value="empty" disabled>
+                    Select a city first
+                  </SelectItem>
+                ) : barangayLoading ? (
+                  <SelectItem value="loading" disabled>
+                    Loading…
+                  </SelectItem>
+                ) : barangayOptions.length === 0 ? (
+                  <SelectItem value="empty" disabled>
+                    No barangays available
+                  </SelectItem>
+                ) : (
+                  barangayOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="barangay">Barangay (optional)</Label>
-              <Input
-                id="barangay"
-                value={barangay}
-                onChange={(e) => setBarangay(e.target.value)}
-                placeholder="Barangay name"
-                className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="type">Event Type</Label>
+              <Label htmlFor="type">Type</Label>
               <Select value={type} onValueChange={(value) => setType(value as AlertType)}>
                 <SelectTrigger id="type" className="bg-neutral-900 border-neutral-800 text-white">
                   <SelectValue placeholder="Select type" />
@@ -206,7 +299,7 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="severity">Severity Level</Label>
+              <Label htmlFor="severity">Severity</Label>
               <Select value={severity} onValueChange={(value) => setSeverity(value as AlertSeverity)}>
                 <SelectTrigger id="severity" className="bg-neutral-900 border-neutral-800 text-white">
                   <SelectValue placeholder="Select severity" />
@@ -242,16 +335,18 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Short description</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What's happening?"
-              rows={5}
+              rows={4}
+              maxLength={220}
               required
               className="resize-none bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
             />
+            {formError && <p className="text-xs text-red-300">{formError}</p>}
           </div>
 
           <div className="flex items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3">
