@@ -17,6 +17,9 @@ interface MapViewProps {
    * Use `coordsKey([lat,lng])` to generate the same key as the map.
    */
   focusKey?: string | null;
+  pickMode?: boolean;
+  pickLocation?: [number, number] | null;
+  onPickLocation?: (coords: [number, number]) => void;
 }
 
 type GeoJSONPolygon = number[][][]; // [ring][point][lng,lat]
@@ -338,10 +341,14 @@ export function MapView({
   variant = 'embedded',
   visualization = 'barangay',
   focusKey,
+  pickMode = false,
+  pickLocation = null,
+  onPickLocation,
 }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(6);
+  const pickMarkerRef = useRef<L.CircleMarker | null>(null);
   const adminLayerRef = useRef<L.GeoJSON | null>(null);
   const adminIndexRef = useRef<AdminIndexItem[] | null>(null);
   const adminStatsRef = useRef<Map<string, AdminStats>>(new Map());
@@ -885,6 +892,51 @@ export function MapView({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (!pickMode || !onPickLocation) return;
+
+    const container = map.getContainer();
+    container.style.cursor = 'crosshair';
+
+    const handlePick = (evt: L.LeafletMouseEvent) => {
+      onPickLocation([evt.latlng.lat, evt.latlng.lng]);
+    };
+
+    map.on('click', handlePick);
+    return () => {
+      map.off('click', handlePick);
+      container.style.cursor = '';
+    };
+  }, [pickMode, onPickLocation]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!pickLocation) {
+      if (pickMarkerRef.current) {
+        pickMarkerRef.current.remove();
+        pickMarkerRef.current = null;
+      }
+      return;
+    }
+
+    if (!pickMarkerRef.current) {
+      pickMarkerRef.current = L.circleMarker(pickLocation, {
+        radius: 7,
+        color: '#f87171',
+        weight: 2,
+        fillColor: '#fecaca',
+        fillOpacity: 0.95,
+      }).addTo(map);
+      return;
+    }
+
+    pickMarkerRef.current.setLatLng(pickLocation);
+  }, [pickLocation]);
 
   // Mark map container for CSS-level perf tuning
   useEffect(() => {

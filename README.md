@@ -1,6 +1,6 @@
-# Weather Disaster Tracker
+# PH Flood Disaster Tracker
 
-Real-time, map-first disaster reporting for the Philippines. The app collects community reports, highlights hotspots by severity, and surfaces stranded cases needing rescue. Made with love and intention to help save lives during disasters in the Philippines.
+Real-time, map-first flood reporting for the Philippines. The app collects community reports, highlights hotspots by severity, and surfaces stranded cases needing rescue. Made with love and intention to help save lives during disasters in the Philippines.
 If this helps your community or you have suggestions, I’d love to hear from you.
 
 ## Demo

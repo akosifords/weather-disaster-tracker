@@ -84,6 +84,8 @@ export default function App() {
   const [alerts, setAlerts] = useState<DisasterAlert[]>(initialAlerts);
   const [mapFocusKey, setMapFocusKey] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [pickMode, setPickMode] = useState(false);
+  const [pickedCoords, setPickedCoords] = useState<[number, number] | null>(null);
   const reportsQuery = useMemo(() => ({ limit: 100 }), []);
   const areaSeverityQuery = useMemo(() => ({ timeWindowHours: 168, limit: 20 }), []);
   const { submitReport, submitting } = useSubmitReport();
@@ -131,11 +133,28 @@ export default function App() {
         description: 'Thanks for helping keep your community informed.',
       });
       setReportOpen(false);
+      setPickedCoords(null);
     } else {
       toast.error('Report submission failed', {
         description: 'Please try again in a moment.',
       });
     }
+  };
+
+  const handleRequestMapPick = () => {
+    setReportOpen(false);
+    setPickedCoords(null);
+    setPickMode(true);
+  };
+
+  const handlePickedLocation = (coords: [number, number]) => {
+    setPickedCoords(coords);
+    setPickMode(false);
+    setReportOpen(true);
+  };
+
+  const handleCancelPick = () => {
+    setPickMode(false);
   };
   const handleFocusArea = (ranking: AreaSeverityRanking) => {
     const normalize = (value: string) => value.trim().toLowerCase();
@@ -179,8 +198,32 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="relative h-full w-full">
-          <MapView reports={allReports} variant="full" visualization="barangay" focusKey={mapFocusKey} />
+          <MapView
+            reports={allReports}
+            variant="full"
+            visualization="barangay"
+            focusKey={mapFocusKey}
+            pickMode={pickMode}
+            pickLocation={pickedCoords}
+            onPickLocation={handlePickedLocation}
+          />
           <AreaSeverityOverlay rankings={areaSeverity} onFocusArea={handleFocusArea} loading={severityLoading} />
+          {pickMode && (
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
+              <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-red-500/40 bg-neutral-900/90 px-4 py-2 text-xs text-red-100 shadow-lg">
+                <span className="font-mono uppercase tracking-[0.18em]">Tap map to drop pin</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 px-3 text-[10px] font-mono uppercase tracking-[0.18em]"
+                  onClick={handleCancelPick}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="absolute bottom-4 right-4 z-30">
             <Dialog open={reportOpen} onOpenChange={setReportOpen}>
               <DialogTrigger asChild>
@@ -219,7 +262,11 @@ export default function App() {
                     <div className="font-mono uppercase tracking-[0.18em] text-neutral-500">Safety</div>
                     <div>Only submit if safe. For life-threatening emergencies, contact local authorities.</div>
                   </div>
-                  <ReportForm onSubmit={handleSubmitReport} />
+                  <ReportForm
+                    onSubmit={handleSubmitReport}
+                    onRequestMapPick={handleRequestMapPick}
+                    pickLocation={pickedCoords}
+                  />
                 </div>
               </DialogContent>
             </Dialog>

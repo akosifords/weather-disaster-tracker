@@ -48,18 +48,19 @@ export interface UserReport {
 
 interface ReportFormProps {
   onSubmit: (report: Omit<UserReport, 'id' | 'timestamp'>) => void;
+  onRequestMapPick?: () => void;
+  pickLocation?: [number, number] | null;
 }
 
-export function ReportForm({ onSubmit }: ReportFormProps) {
+export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportFormProps) {
   const [city, setCity] = useState('');
   const [barangay, setBarangay] = useState('');
-  const [type, setType] = useState<AlertType>('other');
-  const [severity, setSeverity] = useState<AlertSeverity>('low');
   const [description, setDescription] = useState('');
   const [needsRescue, setNeedsRescue] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [gpsError, setGpsError] = useState('');
+  const [locationSource, setLocationSource] = useState<'gps' | 'map' | null>(null);
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
   const [cityLoading, setCityLoading] = useState(false);
@@ -90,6 +91,40 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
     return () => ctrl.abort();
   }, [city]);
 
+  const applyCoordinates = async (coords: [number, number], source: 'gps' | 'map') => {
+    setCoordinates(coords);
+    setLocationSource(source);
+    setGpsStatus('ready');
+    setGpsError('');
+    setFormError('');
+
+    try {
+      const resolved = await resolveBarangayFromCoordsDetailed(coords);
+      if (resolved.status === 'hit' && resolved.data.city && resolved.data.barangay) {
+        setCity((prev) => (prev ? prev : resolved.data.city ?? ''));
+        setBarangay((prev) => (prev ? prev : resolved.data.barangay ?? ''));
+        setCityOptions((prev) =>
+          resolved.data.city && !prev.includes(resolved.data.city) ? [resolved.data.city, ...prev] : prev,
+        );
+        setBarangayOptions((prev) =>
+          resolved.data.barangay && !prev.includes(resolved.data.barangay)
+            ? [resolved.data.barangay, ...prev]
+            : prev,
+        );
+        return;
+      }
+    } catch {
+      // Ignore lookup errors and let the user choose manually.
+    }
+
+    setGpsError('Location set. Please choose your city and barangay.');
+  };
+
+  useEffect(() => {
+    if (!pickLocation) return;
+    applyCoordinates(pickLocation, 'map');
+  }, [pickLocation]);
+
   const handleUseGps = () => {
     if (!navigator.geolocation) {
       setGpsStatus('error');
@@ -104,26 +139,7 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
       async (pos) => {
         const lat = Number(pos.coords.latitude.toFixed(5));
         const lng = Number(pos.coords.longitude.toFixed(5));
-        setCoordinates([lat, lng]);
-        try {
-          const resolved = await resolveBarangayFromCoordsDetailed([lat, lng]);
-          if (resolved.status === 'hit' && resolved.data.city && resolved.data.barangay) {
-            setCity((prev) => (prev ? prev : resolved.data.city ?? ''));
-            setBarangay((prev) => (prev ? prev : resolved.data.barangay ?? ''));
-            setCityOptions((prev) =>
-              resolved.data.city && !prev.includes(resolved.data.city) ? [resolved.data.city, ...prev] : prev,
-            );
-            setBarangayOptions((prev) =>
-              resolved.data.barangay && !prev.includes(resolved.data.barangay) ? [resolved.data.barangay, ...prev] : prev,
-            );
-            setGpsStatus('ready');
-            return;
-          }
-        } catch {
-          // Ignore lookup errors and let the user choose manually.
-        }
-        setGpsStatus('ready');
-        setGpsError('GPS found. Please choose your city and barangay.');
+        await applyCoordinates([lat, lng], 'gps');
       },
       (err) => {
         setGpsStatus('error');
@@ -146,8 +162,8 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
       location: `${barangay.trim()}, ${city.trim()}`,
       barangay: barangay.trim(),
       city: city.trim(),
-      type,
-      severity,
+      type: 'flood',
+      severity: 'low',
       description,
       needsRescue,
       coordinates,
@@ -156,13 +172,12 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
     // Reset form
     setCity('');
     setBarangay('');
-    setType('other');
-    setSeverity('low');
     setDescription('');
     setNeedsRescue(false);
     setCoordinates(undefined);
     setGpsStatus('idle');
     setGpsError('');
+    setLocationSource(null);
     setFormError('');
   };
 
@@ -183,16 +198,28 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="city">City / Municipality</Label>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleUseGps}
-                disabled={gpsStatus === 'loading'}
-                className="h-7 px-2 text-xs"
-              >
-                {gpsStatus === 'loading' ? 'Locating…' : 'Use GPS'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleUseGps}
+                  disabled={gpsStatus === 'loading'}
+                  className="h-7 px-2 text-xs"
+                >
+                  {gpsStatus === 'loading' ? 'Locating…' : 'Use GPS'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onRequestMapPick}
+                  disabled={!onRequestMapPick}
+                  className="h-7 px-2 text-xs"
+                >
+                  Pick on map
+                </Button>
+              </div>
             </div>
             <Select
               value={city}
@@ -223,8 +250,10 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
                 )}
               </SelectContent>
             </Select>
-            {gpsStatus === 'ready' && !gpsError && (
-              <p className="text-xs text-emerald-300">GPS checked.</p>
+            {gpsStatus === 'ready' && !gpsError && coordinates && (
+              <p className="text-xs text-emerald-300">
+                {locationSource === 'map' ? 'Map pin set.' : 'GPS checked.'}
+              </p>
             )}
             {gpsError && (
               <p className={`text-xs ${gpsStatus === 'error' ? 'text-red-300' : 'text-amber-300'}`}>
@@ -281,57 +310,9 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="type">Type</Label>
-              <Select value={type} onValueChange={(value) => setType(value as AlertType)}>
-                <SelectTrigger id="type" className="bg-neutral-900 border-neutral-800 text-white">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="flood">Flood</SelectItem>
-                  <SelectItem value="fire">Fire</SelectItem>
-                  <SelectItem value="storm">Storm</SelectItem>
-                  <SelectItem value="wind">Wind</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="severity">Severity</Label>
-              <Select value={severity} onValueChange={(value) => setSeverity(value as AlertSeverity)}>
-                <SelectTrigger id="severity" className="bg-neutral-900 border-neutral-800 text-white">
-                  <SelectValue placeholder="Select severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">
-                    <span className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-                      Low
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    <span className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
-                      Medium
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="high">
-                    <span className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-                      High
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="critical">
-                    <span className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                      Critical
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-xs text-neutral-400">
+            <span className="font-mono uppercase tracking-[0.18em] text-neutral-500">Incident type</span>
+            <div className="mt-1 text-sm text-white">Flood</div>
           </div>
 
           <div className="space-y-2">
