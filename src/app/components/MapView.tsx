@@ -795,6 +795,11 @@ export function MapView({
     map.flyTo(PH_CENTER, 6, { animate: true, duration: 0.6 });
   };
 
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+  };
+
   const popupHtml = (data: LocationData) => {
     const severityLabel = data.highestSeverity.toUpperCase();
     const radiusM = getRadarRadiusMeters(data.count, data.highestSeverity);
@@ -830,7 +835,7 @@ export function MapView({
                   </span>
                   <span class="leaflet-pop__type">${report.type}</span>
                 </div>
-                <div class="leaflet-pop__desc">${report.description}</div>
+                <div class="leaflet-pop__desc">${truncateText(report.description, 110)}</div>
                 <div class="leaflet-pop__by">— ${report.reporterName}</div>
               </div>
             `,

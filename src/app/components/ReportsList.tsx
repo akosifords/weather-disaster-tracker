@@ -32,6 +32,14 @@ export function ReportsList({ reports }: ReportsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
+  const [expandedReportIds, setExpandedReportIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpanded = (reportId: string) => {
+    setExpandedReportIds((prev) => ({
+      ...prev,
+      [reportId]: !prev[reportId],
+    }));
+  };
 
   const filteredReports = reports.filter((report) => {
     const matchesSearch =
@@ -52,7 +60,7 @@ export function ReportsList({ reports }: ReportsListProps) {
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between mb-4">
           <CardTitle className="text-sm tracking-[0.18em] uppercase font-mono text-muted-foreground">
-            Reports (community + PAGASA)
+            Reports
           </CardTitle>
           <Badge variant="secondary" className="rounded-full font-mono text-[10px] tracking-[0.18em] uppercase">
             <Users className="w-3 h-3 mr-1" />
@@ -130,9 +138,23 @@ export function ReportsList({ reports }: ReportsListProps) {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-foreground/90 leading-relaxed">
+                    <p
+                      className={[
+                        'text-foreground/90 leading-relaxed',
+                        expandedReportIds[report.id] ? '' : 'line-clamp-2',
+                      ].join(' ')}
+                    >
                       {report.description}
                     </p>
+                    {report.description.length > 140 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(report.id)}
+                        className="mt-2 text-xs uppercase tracking-[0.18em] font-mono text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {expandedReportIds[report.id] ? 'Less' : 'More'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-3 border-t">

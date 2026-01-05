@@ -53,34 +53,71 @@ interface ReportFormProps {
 export function ReportForm({ onSubmit }: ReportFormProps) {
   const [reporterName, setReporterName] = useState('');
   const [location, setLocation] = useState('');
+  const [barangay, setBarangay] = useState('');
   const [type, setType] = useState<AlertType>('other');
   const [severity, setSeverity] = useState<AlertSeverity>('low');
   const [description, setDescription] = useState('');
   const [needsRescue, setNeedsRescue] = useState(false);
+  const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [gpsError, setGpsError] = useState('');
+
+  const handleUseGps = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('error');
+      setGpsError('GPS not available in this browser.');
+      return;
+    }
+
+    setGpsStatus('loading');
+    setGpsError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(5));
+        const lng = Number(pos.coords.longitude.toFixed(5));
+        setCoordinates([lat, lng]);
+        setLocation(`Near ${lat}, ${lng}`);
+        setGpsStatus('ready');
+      },
+      (err) => {
+        setGpsStatus('error');
+        setGpsError(err.message || 'Unable to get GPS location.');
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!reporterName || !location || !description) {
+    const resolvedLocation = location.trim() || barangay.trim();
+
+    if (!reporterName || !resolvedLocation || !description) {
       return;
     }
 
     onSubmit({
       reporterName,
-      location,
+      location: resolvedLocation,
+      barangay: barangay.trim() || undefined,
       type,
       severity,
       description,
       needsRescue,
+      coordinates,
     });
 
     // Reset form
     setReporterName('');
     setLocation('');
+    setBarangay('');
     setType('other');
     setSeverity('low');
     setDescription('');
     setNeedsRescue(false);
+    setCoordinates(undefined);
+    setGpsStatus('idle');
+    setGpsError('');
   };
 
   return (
@@ -89,10 +126,10 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
       <CardHeader className="border-b border-neutral-800 pb-4">
         <CardTitle className="flex items-center gap-2">
           <MapPin className="w-5 h-5 text-red-400" />
-          File an incident report
+          Report an incident
         </CardTitle>
         <CardDescription>
-          Help your community by reporting conditions in your area
+          Share conditions in your area
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
@@ -111,19 +148,47 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="location">Location</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleUseGps}
+                  disabled={gpsStatus === 'loading'}
+                  className="h-7 px-2 text-xs"
+                >
+                  {gpsStatus === 'loading' ? 'Locating…' : 'Use GPS'}
+                </Button>
+              </div>
               <Input
                 id="location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="Mission District, SF"
-                required
+                placeholder="City or street"
+                required={barangay.trim() === ''}
                 className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
               />
+              {gpsStatus === 'ready' && (
+                <p className="text-xs text-emerald-300">GPS location added.</p>
+              )}
+              {gpsStatus === 'error' && gpsError && (
+                <p className="text-xs text-red-300">{gpsError}</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="barangay">Barangay (optional)</Label>
+              <Input
+                id="barangay"
+                value={barangay}
+                onChange={(e) => setBarangay(e.target.value)}
+                placeholder="Barangay name"
+                className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="type">Event Type</Label>
               <Select value={type} onValueChange={(value) => setType(value as AlertType)}>
@@ -182,7 +247,7 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what you're experiencing..."
+              placeholder="What's happening?"
               rows={5}
               required
               className="resize-none bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
@@ -197,10 +262,10 @@ export function ReportForm({ onSubmit }: ReportFormProps) {
             />
             <div className="grid gap-1">
               <Label htmlFor="needs-rescue" className="cursor-pointer">
-                Someone is stranded and needs rescue
+                Needs rescue
               </Label>
               <p className="text-xs text-muted-foreground">
-                Check this if immediate rescue assistance is required.
+                Check if immediate rescue is needed.
               </p>
             </div>
           </div>
