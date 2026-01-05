@@ -118,6 +118,25 @@ export interface GetAreaSeverityResponse {
   calculatedAt: Date;
 }
 
+const PH_COORD_BOUNDS = {
+  latMin: 4.4,
+  latMax: 21.6,
+  lngMin: 116.0,
+  lngMax: 127.3,
+};
+
+function normalizeLatLng(coords: [number, number]): [number, number] {
+  const [a, b] = coords;
+  const aLat = a >= PH_COORD_BOUNDS.latMin && a <= PH_COORD_BOUNDS.latMax;
+  const aLng = a >= PH_COORD_BOUNDS.lngMin && a <= PH_COORD_BOUNDS.lngMax;
+  const bLat = b >= PH_COORD_BOUNDS.latMin && b <= PH_COORD_BOUNDS.latMax;
+  const bLng = b >= PH_COORD_BOUNDS.lngMin && b <= PH_COORD_BOUNDS.lngMax;
+
+  if (aLat && bLng) return [a, b];
+  if (aLng && bLat) return [b, a];
+  return [a, b];
+}
+
 // Conversion utilities
 export function dbRecordToUserReport(record: CommunityReportRecord): UserReport {
   // Parse coordinates from PostGIS geography
@@ -165,7 +184,7 @@ export function dbRecordToUserReport(record: CommunityReportRecord): UserReport 
     timestamp: new Date(record.timestamp),
     needsRescue: record.needs_rescue,
     source: record.source,
-    coordinates,
+    coordinates: coordinates ? normalizeLatLng(coordinates) : undefined,
     sourceUrl: record.source_url ?? undefined,
     externalId: record.external_id ?? undefined,
   };
