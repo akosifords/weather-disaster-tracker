@@ -5,11 +5,13 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import type { UserReport } from './ReportForm';
 import type { AlertSeverity } from './DisasterAlerts';
+import type { AreaSeverityRanking } from '../../../api/_lib/types';
 import { coordsKey, getApproxCoordinates, PH_BOUNDS, PH_CENTER } from '../lib/geo';
 import 'leaflet/dist/leaflet.css';
 
 interface MapViewProps {
   reports: UserReport[];
+  areaRankings?: AreaSeverityRanking[];
   variant?: 'embedded' | 'full';
   visualization?: 'poi' | 'areas' | 'admin' | 'barangay';
   /**
@@ -338,6 +340,7 @@ const cellSizeForZoom = (zoom: number) => {
 
 export function MapView({
   reports,
+  areaRankings = [],
   variant = 'embedded',
   visualization = 'barangay',
   focusKey,
@@ -352,6 +355,7 @@ export function MapView({
   const adminLayerRef = useRef<L.GeoJSON | null>(null);
   const adminIndexRef = useRef<AdminIndexItem[] | null>(null);
   const adminStatsRef = useRef<Map<string, AdminStats>>(new Map());
+  const areaCirclesRef = useRef<L.Circle[]>([]);
   const [adminReady, setAdminReady] = useState(false);
   const [adminUnitCount, setAdminUnitCount] = useState(0);
   const [adminAffectedCount, setAdminAffectedCount] = useState(0);
@@ -1311,6 +1315,40 @@ export function MapView({
     if (!focusKey) return;
     flyToKey(focusKey);
   }, [focusKey, locationData]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    areaCirclesRef.current.forEach((circle) => circle.remove());
+    areaCirclesRef.current = [];
+
+    if (areaRankings.length === 0) return;
+
+    areaRankings.forEach((ranking) => {
+      if (!ranking.coordinates || ranking.coordinates.length !== 2) return;
+      const totalReports =
+        ranking.reportCounts.critical +
+        ranking.reportCounts.high +
+        ranking.reportCounts.medium +
+        ranking.reportCounts.low;
+      if (totalReports <= 0) return;
+
+      const color = getSeverityColor(ranking.severity);
+      const radiusM = getRadarRadiusMeters(totalReports, ranking.severity) * 1.4;
+      const circle = L.circle(ranking.coordinates, {
+        radius: radiusM,
+        color,
+        weight: 1,
+        fillColor: color,
+        fillOpacity: 0.12,
+        interactive: false,
+        className: `area-severity-circle area-severity-circle--${ranking.severity}`,
+      });
+      circle.addTo(map);
+      areaCirclesRef.current.push(circle);
+    });
+  }, [areaRankings]);
 
   if (variant === 'full') {
     return (

@@ -282,6 +282,7 @@ export default function App() {
           <div className="relative h-full w-full">
             <MapView
               reports={allReports}
+              areaRankings={areaSeverity}
               variant="full"
               visualization="barangay"
               focusKey={mapFocusKey}
