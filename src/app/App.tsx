@@ -158,6 +158,11 @@ export default function App() {
     setPickMode(false);
   };
   const handleFocusArea = (ranking: AreaSeverityRanking) => {
+    if (ranking.coordinates && ranking.coordinates.length === 2) {
+      setMapFocusKey(coordsKey([ranking.coordinates[0], ranking.coordinates[1]]));
+      return;
+    }
+
     const normalize = (value: string) => value.trim().toLowerCase();
     const normalizeCity = (value: string) => normalize(value.replace(/^City of\s+/i, ''));
     const target = normalize(ranking.areaIdentifier);
@@ -184,6 +189,11 @@ export default function App() {
     }
 
     setMapFocusKey(coordsKey(getApproxCoordinates(ranking.areaIdentifier)));
+  };
+
+  const handleSelectReport = (report: UserReport) => {
+    setActiveTab('map');
+    setMapFocusKey(coordsKey(coordsForReport(report)));
   };
 
   return (
@@ -299,7 +309,7 @@ export default function App() {
           </div>
         ) : (
           <div className="h-full w-full overflow-auto p-4 md:p-6">
-            <ReportsList reports={allReports} />
+            <ReportsList reports={allReports} onSelectReport={handleSelectReport} />
           </div>
         )}
       </main>

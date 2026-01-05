@@ -181,53 +181,67 @@ export function calculateBounds(
 
 interface AreaGroup {
   identifier: string;
-  type: 'barangay' | 'city' | 'cluster';
+  type: 'cluster';
   reports: UserReport[];
+  centroid: [number, number];
+  sumLat: number;
+  sumLng: number;
 }
 
 /**
- * Group reports by administrative area (barangay/city)
- * Falls back to spatial clustering for reports without administrative data
+ * Group reports by proximity (geolocation clustering)
  */
 export function groupReportsByArea(reports: UserReport[]): AreaGroup[] {
-  const groups = new Map<string, AreaGroup>();
+  const groups: AreaGroup[] = [];
+  const CLUSTER_RADIUS_M = 2500;
 
-  // First, group by barangay
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const haversineMeters = (a: [number, number], b: [number, number]) => {
+    const dLat = toRad(b[0] - a[0]);
+    const dLng = toRad(b[1] - a[1]);
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const s =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6378137 * Math.asin(Math.min(1, Math.sqrt(s)));
+  };
+
   for (const report of reports) {
-    if (report.barangay && report.city) {
-      const key = `${report.city}||${report.barangay}`.toLowerCase();
+    const coords = report.coordinates;
+    if (!coords || coords.length !== 2) continue;
 
-      if (!groups.has(key)) {
-        groups.set(key, {
-          identifier: `${report.barangay}, ${report.city}`,
-          type: 'barangay',
-          reports: [],
-        });
+    let matched: AreaGroup | null = null;
+    for (const group of groups) {
+      if (haversineMeters(coords, group.centroid) <= CLUSTER_RADIUS_M) {
+        matched = group;
+        break;
       }
-
-      groups.get(key)!.reports.push(report);
     }
+
+    if (!matched) {
+      groups.push({
+        identifier: `Near ${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`,
+        type: 'cluster',
+        reports: [report],
+        centroid: coords,
+        sumLat: coords[0],
+        sumLng: coords[1],
+      });
+      continue;
+    }
+
+    matched.reports.push(report);
+    matched.sumLat += coords[0];
+    matched.sumLng += coords[1];
+    matched.centroid = [
+      matched.sumLat / matched.reports.length,
+      matched.sumLng / matched.reports.length,
+    ];
+    matched.identifier = `Near ${matched.centroid[0].toFixed(4)}, ${matched.centroid[1].toFixed(4)}`;
   }
 
-  // TODO: Implement spatial clustering (DBSCAN) for reports without barangay data
-  // For now, group remaining reports by city if available
-  for (const report of reports) {
-    if (!report.barangay && report.city) {
-      const key = `city||${report.city}`.toLowerCase();
-
-      if (!groups.has(key)) {
-        groups.set(key, {
-          identifier: report.city,
-          type: 'city',
-          reports: [],
-        });
-      }
-
-      groups.get(key)!.reports.push(report);
-    }
-  }
-
-  return Array.from(groups.values());
+  return groups;
 }
 
 /**

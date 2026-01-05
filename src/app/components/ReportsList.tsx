@@ -11,6 +11,7 @@ import { formatBarangayLocation } from '../lib/barangay';
 
 interface ReportsListProps {
   reports: UserReport[];
+  onSelectReport?: (report: UserReport) => void;
 }
 
 const getSeverityColor = (severity: AlertSeverity) => {
@@ -28,7 +29,7 @@ const getSeverityColor = (severity: AlertSeverity) => {
   }
 };
 
-export function ReportsList({ reports }: ReportsListProps) {
+export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
@@ -122,6 +123,16 @@ export function ReportsList({ reports }: ReportsListProps) {
               <div
                 key={report.id}
                 className="rounded-xl border bg-background/40 p-5 shadow-sm transition-shadow hover:shadow-md"
+                role={onSelectReport ? 'button' : undefined}
+                tabIndex={onSelectReport ? 0 : undefined}
+                onClick={() => onSelectReport?.(report)}
+                onKeyDown={(event) => {
+                  if (!onSelectReport) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onSelectReport(report);
+                  }
+                }}
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="flex-1">
@@ -150,6 +161,8 @@ export function ReportsList({ reports }: ReportsListProps) {
                       <button
                         type="button"
                         onClick={() => toggleExpanded(report.id)}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClickCapture={(event) => event.stopPropagation()}
                         className="mt-2 text-xs uppercase tracking-[0.18em] font-mono text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {expandedReportIds[report.id] ? 'Less' : 'More'}
