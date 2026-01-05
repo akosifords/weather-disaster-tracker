@@ -3,11 +3,12 @@ import { Send, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
+import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Checkbox } from './ui/checkbox';
 import type { AlertType, AlertSeverity } from './DisasterAlerts';
-import { fetchBarangayOptions, fetchCityOptions, resolveBarangayFromCoordsDetailed } from '../lib/barangay';
+import { fetchCityOptions, resolveBarangayFromCoordsDetailed } from '../lib/barangay';
 
 export interface UserReport {
   id: string;
@@ -54,7 +55,7 @@ interface ReportFormProps {
 
 export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportFormProps) {
   const [city, setCity] = useState('');
-  const [barangay, setBarangay] = useState('');
+  const [specificLocation, setSpecificLocation] = useState('');
   const [description, setDescription] = useState('');
   const [needsRescue, setNeedsRescue] = useState(false);
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
@@ -62,9 +63,7 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
   const [gpsError, setGpsError] = useState('');
   const [locationSource, setLocationSource] = useState<'gps' | 'map' | null>(null);
   const [cityOptions, setCityOptions] = useState<string[]>([]);
-  const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
   const [cityLoading, setCityLoading] = useState(false);
-  const [barangayLoading, setBarangayLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
@@ -77,20 +76,6 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
     return () => ctrl.abort();
   }, []);
 
-  useEffect(() => {
-    if (!city) {
-      setBarangayOptions([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    setBarangayLoading(true);
-    fetchBarangayOptions(city, { signal: ctrl.signal })
-      .then((options) => setBarangayOptions(options))
-      .catch(() => setBarangayOptions([]))
-      .finally(() => setBarangayLoading(false));
-    return () => ctrl.abort();
-  }, [city]);
-
   const applyCoordinates = async (coords: [number, number], source: 'gps' | 'map') => {
     setCoordinates(coords);
     setLocationSource(source);
@@ -100,16 +85,10 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
 
     try {
       const resolved = await resolveBarangayFromCoordsDetailed(coords);
-      if (resolved.status === 'hit' && resolved.data.city && resolved.data.barangay) {
+      if (resolved.status === 'hit' && resolved.data.city) {
         setCity((prev) => (prev ? prev : resolved.data.city ?? ''));
-        setBarangay((prev) => (prev ? prev : resolved.data.barangay ?? ''));
         setCityOptions((prev) =>
           resolved.data.city && !prev.includes(resolved.data.city) ? [resolved.data.city, ...prev] : prev,
-        );
-        setBarangayOptions((prev) =>
-          resolved.data.barangay && !prev.includes(resolved.data.barangay)
-            ? [resolved.data.barangay, ...prev]
-            : prev,
         );
         return;
       }
@@ -117,7 +96,7 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
       // Ignore lookup errors and let the user choose manually.
     }
 
-    setGpsError('Location set. Please choose your city and barangay.');
+    setGpsError('Location set. Please choose your city and enter a specific location.');
   };
 
   useEffect(() => {
@@ -152,15 +131,14 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!city || !barangay || !description) {
-      setFormError('Please choose your city and barangay, then add a short description.');
+    if (!city || !specificLocation || !description) {
+      setFormError('Please choose your city, enter a specific location, then add a short description.');
       return;
     }
 
     onSubmit({
       reporterName: 'Anonymous',
-      location: `${barangay.trim()}, ${city.trim()}`,
-      barangay: barangay.trim(),
+      location: `${specificLocation.trim()}, ${city.trim()}`,
       city: city.trim(),
       type: 'flood',
       severity: 'low',
@@ -171,7 +149,7 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
 
     // Reset form
     setCity('');
-    setBarangay('');
+    setSpecificLocation('');
     setDescription('');
     setNeedsRescue(false);
     setCoordinates(undefined);
@@ -225,7 +203,6 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
               value={city}
               onValueChange={(value) => {
                 setCity(value);
-                setBarangay('');
                 setFormError('');
               }}
             >
@@ -263,56 +240,19 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="barangay">Barangay</Label>
-            <Select
-              value={barangay}
-              onValueChange={(value) => {
-                setBarangay(value);
+            <Label htmlFor="specific-location">Specific location</Label>
+            <Input
+              id="specific-location"
+              value={specificLocation}
+              onChange={(e) => {
+                setSpecificLocation(e.target.value);
                 setFormError('');
               }}
-            >
-              <SelectTrigger
-                id="barangay"
-                className="bg-neutral-900 border-neutral-800 text-white"
-                disabled={!city || barangayLoading}
-              >
-                <SelectValue
-                  placeholder={
-                    !city
-                      ? 'Choose city first'
-                      : barangayLoading
-                        ? 'Loading barangays…'
-                        : 'Select barangay'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {!city ? (
-                  <SelectItem value="empty" disabled>
-                    Select a city first
-                  </SelectItem>
-                ) : barangayLoading ? (
-                  <SelectItem value="loading" disabled>
-                    Loading…
-                  </SelectItem>
-                ) : barangayOptions.length === 0 ? (
-                  <SelectItem value="empty" disabled>
-                    No barangays available
-                  </SelectItem>
-                ) : (
-                  barangayOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-4 py-3 text-xs text-neutral-400">
-            <span className="font-mono uppercase tracking-[0.18em] text-neutral-500">Incident type</span>
-            <div className="mt-1 text-sm text-white">Flood</div>
+              placeholder="Street, landmark, or neighborhood"
+              maxLength={200}
+              required
+              className="bg-neutral-900 border-neutral-800 text-white placeholder:text-neutral-500"
+            />
           </div>
 
           <div className="space-y-2">

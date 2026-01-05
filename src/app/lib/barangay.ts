@@ -171,12 +171,15 @@ export async function fetchBarangayOptions(
 }
 
 export function formatBarangayLocation(r: Pick<UserReport, 'barangay' | 'city' | 'province' | 'region' | 'location'>) {
-  const parts = [r.barangay, r.city, r.province].filter(Boolean);
-  if (parts.length > 0) return parts.join(', ');
-  return r.location;
+  if (r.barangay) {
+    const parts = [r.barangay, r.city, r.province].filter(Boolean);
+    return parts.join(', ');
+  }
+  if (r.location) return r.location;
+  const parts = [r.city, r.province, r.region].filter(Boolean);
+  return parts.join(', ');
 }
 
 export function coordsForReport(report: Pick<UserReport, 'coordinates' | 'location'>): [number, number] {
   return report.coordinates ?? getApproxCoordinates(report.location);
 }
-
