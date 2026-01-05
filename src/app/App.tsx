@@ -16,6 +16,7 @@ import { Plus } from 'lucide-react';
 import { coordsKey, getApproxCoordinates } from './lib/geo';
 import { coordsForReport } from './lib/barangay';
 import type { AreaSeverityRanking } from '../../api/_lib/types';
+import { ReportsList } from './components/ReportsList';
 
 // Mock disaster alerts
 const initialAlerts: DisasterAlert[] = [
@@ -86,6 +87,7 @@ export default function App() {
   const [reportOpen, setReportOpen] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [pickedCoords, setPickedCoords] = useState<[number, number] | null>(null);
+  const [activeTab, setActiveTab] = useState<'map' | 'reports'>('map');
   const reportsQuery = useMemo(() => ({ limit: 100 }), []);
   const areaSeverityQuery = useMemo(() => ({ timeWindowHours: 168, limit: 20 }), []);
   const { submitReport, submitting } = useSubmitReport();
@@ -123,8 +125,6 @@ export default function App() {
   // Community reports are already enriched by the backend
   const allReports = communityReports;
 
-  const recentReports = useMemo(() => allReports.slice(0, 3), [allReports]);
-
   // (Intentionally map-first landing; dashboard/report submission UI removed from landing)
   const handleSubmitReport = async (report: Omit<UserReport, 'id' | 'timestamp'>) => {
     const saved = await submitReport(report);
@@ -145,6 +145,7 @@ export default function App() {
     setReportOpen(false);
     setPickedCoords(null);
     setPickMode(true);
+    setActiveTab('map');
   };
 
   const handlePickedLocation = (coords: [number, number]) => {
@@ -193,43 +194,34 @@ export default function App() {
       <header className="border-b bg-background sticky top-0 z-30">
         {/* Caution stripe */}
         <div className="h-1 w-full brand-stripe-45" />
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 min-h-0 overflow-hidden">
-        <div className="relative h-full w-full">
-          <MapView
-            reports={allReports}
-            variant="full"
-            visualization="barangay"
-            focusKey={mapFocusKey}
-            pickMode={pickMode}
-            pickLocation={pickedCoords}
-            onPickLocation={handlePickedLocation}
-          />
-          <AreaSeverityOverlay rankings={areaSeverity} onFocusArea={handleFocusArea} loading={severityLoading} />
-          {pickMode && (
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
-              <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-red-500/40 bg-neutral-900/90 px-4 py-2 text-xs text-red-100 shadow-lg">
-                <span className="font-mono uppercase tracking-[0.18em]">Tap map to drop pin</span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-7 px-3 text-[10px] font-mono uppercase tracking-[0.18em]"
-                  onClick={handleCancelPick}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-          <div className="absolute bottom-4 right-4 z-30">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="text-xs font-mono uppercase tracking-[0.24em] text-muted-foreground">
+            PH Flood Disaster Tracker
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={activeTab === 'map' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="font-mono text-[10px] tracking-[0.18em] uppercase"
+              onClick={() => setActiveTab('map')}
+            >
+              Map
+            </Button>
+            <Button
+              type="button"
+              variant={activeTab === 'reports' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="font-mono text-[10px] tracking-[0.18em] uppercase"
+              onClick={() => setActiveTab('reports')}
+            >
+              Reports
+            </Button>
             <Dialog open={reportOpen} onOpenChange={setReportOpen}>
               <DialogTrigger asChild>
                 <Button
-                  size="lg"
-                  className="rounded-full shadow-lg font-mono tracking-[0.18em] uppercase"
+                  size="sm"
+                  className="font-mono text-[10px] tracking-[0.18em] uppercase"
                   disabled={submitting}
                 >
                   <Plus className="mr-2 size-4" />
@@ -272,6 +264,44 @@ export default function App() {
             </Dialog>
           </div>
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {activeTab === 'map' ? (
+          <div className="relative h-full w-full">
+            <MapView
+              reports={allReports}
+              variant="full"
+              visualization="barangay"
+              focusKey={mapFocusKey}
+              pickMode={pickMode}
+              pickLocation={pickedCoords}
+              onPickLocation={handlePickedLocation}
+            />
+            <AreaSeverityOverlay rankings={areaSeverity} onFocusArea={handleFocusArea} loading={severityLoading} />
+            {pickMode && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center">
+                <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-red-500/40 bg-neutral-900/90 px-4 py-2 text-xs text-red-100 shadow-lg">
+                  <span className="font-mono uppercase tracking-[0.18em]">Tap map to drop pin</span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 px-3 text-[10px] font-mono uppercase tracking-[0.18em]"
+                    onClick={handleCancelPick}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full w-full overflow-auto p-4 md:p-6">
+            <ReportsList reports={allReports} />
+          </div>
+        )}
       </main>
     </div>
   );

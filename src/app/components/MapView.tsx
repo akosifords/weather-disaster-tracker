@@ -1238,12 +1238,6 @@ export function MapView({
       const color = getSeverityColor(data.highestSeverity);
       const rings: L.Circle[] = [];
 
-      // In barangay mode, only show circles for reports with barangay data
-      if (visualization === 'barangay') {
-        const hasBarangay = data.reports.some(r => r.barangay && r.city);
-        if (!hasBarangay) return;
-      }
-
       // In barangay mode, make circles much smaller to fit within barangay boundaries
       const adjustedRadius = visualization === 'barangay' ? radiusM * 0.2 : radiusM;
 
