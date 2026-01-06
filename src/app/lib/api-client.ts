@@ -61,17 +61,9 @@ class ApiClient {
   async getReports(query: GetReportsQuery = {}): Promise<GetReportsResponse> {
     const params = new URLSearchParams();
 
-    if (query.severity) {
-      query.severity.forEach((s) => params.append('severity', s));
-    }
-    if (query.type) {
-      query.type.forEach((t) => params.append('type', t));
-    }
     if (query.since) params.set('since', query.since);
     if (query.limit !== undefined) params.set('limit', query.limit.toString());
     if (query.offset !== undefined) params.set('offset', query.offset.toString());
-    if (query.barangay) params.set('barangay', query.barangay);
-    if (query.city) params.set('city', query.city);
 
     const queryString = params.toString();
     const endpoint = `/api/reports${queryString ? `?${queryString}` : ''}`;

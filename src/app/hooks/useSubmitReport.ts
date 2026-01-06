@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { apiClient } from '../lib/api-client';
 import type { ReportFormSubmission, UserReport } from '../components/ReportForm';
 import type { SubmitReportRequest } from '../../../api/_lib/types';
-import { getApproxCoordinates } from '../lib/geo';
 
 interface UseSubmitReportResult {
   submitReport: (report: ReportFormSubmission) => Promise<UserReport | null>;
@@ -20,18 +19,10 @@ export function useSubmitReport(): UseSubmitReportResult {
       setError(null);
 
       try {
-        const resolvedCoordinates =
-          report.coordinates ?? getApproxCoordinates(report.location);
-
         const request: SubmitReportRequest = {
           reporterName: report.reporterName,
-          location: report.location,
           description: report.description,
-          coordinates: resolvedCoordinates,
-          barangay: report.barangay,
-          city: report.city,
-          province: report.province,
-          region: report.region,
+          coordinates: report.coordinates,
           needsRescue: report.needsRescue,
         };
 

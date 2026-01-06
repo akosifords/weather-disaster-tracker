@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withCors } from '../_lib/cors.js';
 import { supabaseAdmin } from '../_lib/supabase.js';
 import { dbRecordToUserReport } from '../_lib/types.js';
-import { calculateAreaSeverity } from '../_lib/severity.js';
+import { calculateAreaSeverity, calculateSeverityForLocation } from '../_lib/severity.js';
 import type { GetAreaSeverityResponse, GetAreaSeverityQuery, CommunityReportRecord } from '../_lib/types.js';
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -69,7 +69,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Convert to UserReport format
-    const reports = (data as CommunityReportRecord[]).map(dbRecordToUserReport);
+    const baseReports = (data as CommunityReportRecord[]).map(dbRecordToUserReport);
+    const now = new Date();
+    const reports = baseReports.map((report) => ({
+      ...report,
+      severity: calculateSeverityForLocation(baseReports, report.coordinates, now),
+    }));
 
     // Calculate severity rankings
     const rankings = calculateAreaSeverity(reports, query.timeWindowHours);

@@ -6,9 +6,8 @@ import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import type { UserReport } from './ReportForm';
 import type { AlertSeverity } from './DisasterAlerts';
-import { coordsKey, getApproxCoordinates } from '../lib/geo';
+import { coordsKey, formatCoordinates, PH_CENTER } from '../lib/geo';
 import { formatDateTimePH } from '../lib/datetime';
-import { formatBarangayLocation } from '../lib/barangay';
 
 interface SevereReportsOverlayProps {
   reports: UserReport[];
@@ -70,7 +69,7 @@ export function SevereReportsOverlay({ reports, onFocusHotspot }: SevereReportsO
             <ScrollArea className="max-h-[38vh] pr-2 sm:max-h-[52vh]">
               <div className="space-y-2">
                 {severeReports.slice(0, 20).map((report) => {
-                  const coords = report.coordinates ?? getApproxCoordinates(report.location);
+                  const coords = report.coordinates ?? PH_CENTER;
                   const key = coordsKey(coords);
                   return (
                     <button
@@ -82,7 +81,7 @@ export function SevereReportsOverlay({ reports, onFocusHotspot }: SevereReportsO
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">
-                            {formatBarangayLocation(report)}
+                            {formatCoordinates(report.coordinates)}
                           </div>
                           <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                             {report.description}
@@ -97,9 +96,6 @@ export function SevereReportsOverlay({ reports, onFocusHotspot }: SevereReportsO
                             ].join(' ')}
                           >
                             {report.severity}
-                          </Badge>
-                          <Badge variant="outline" className="capitalize">
-                            {report.type}
                           </Badge>
                         </div>
                       </div>
@@ -122,7 +118,7 @@ export function SevereReportsOverlay({ reports, onFocusHotspot }: SevereReportsO
                 variant="outline"
                 size="sm"
                 className="font-mono text-[10px] tracking-[0.18em] uppercase"
-                onClick={() => onFocusHotspot(coordsKey(getApproxCoordinates(severeReports[0].location)))}
+                onClick={() => onFocusHotspot(coordsKey(severeReports[0].coordinates ?? PH_CENTER))}
               >
                 <LocateFixed className="size-4 mr-2" />
                 Zoom latest

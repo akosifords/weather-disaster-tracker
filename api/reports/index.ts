@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withCors } from '../_lib/cors.js';
 import { supabaseAdmin } from '../_lib/supabase.js';
+import { calculateSeverityForLocation } from '../_lib/severity.js';
 import { dbRecordToUserReport } from '../_lib/types.js';
 import type { GetReportsResponse, GetReportsQuery, CommunityReportRecord } from '../_lib/types.js';
 
@@ -28,28 +29,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       .order('timestamp', { ascending: false });
 
     // Apply filters
-    if (req.query.severity) {
-      const severities = Array.isArray(req.query.severity)
-        ? req.query.severity
-        : [req.query.severity];
-      dbQuery = dbQuery.in('severity', severities);
-    }
-
-    if (req.query.type) {
-      const types = Array.isArray(req.query.type) ? req.query.type : [req.query.type];
-      dbQuery = dbQuery.in('type', types);
-    }
-
     if (req.query.since) {
       dbQuery = dbQuery.gte('timestamp', req.query.since);
-    }
-
-    if (req.query.barangay) {
-      dbQuery = dbQuery.eq('barangay', req.query.barangay);
-    }
-
-    if (req.query.city) {
-      dbQuery = dbQuery.eq('city', req.query.city);
     }
 
     // Apply pagination
@@ -69,7 +50,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Convert to UserReport format
-    const reports = (data as CommunityReportRecord[]).map(dbRecordToUserReport);
+    const baseReports = (data as CommunityReportRecord[]).map(dbRecordToUserReport);
+    const now = new Date();
+    const reports = baseReports.map((report) => ({
+      ...report,
+      severity: calculateSeverityForLocation(baseReports, report.coordinates, now),
+    }));
 
     const response: GetReportsResponse = {
       reports,

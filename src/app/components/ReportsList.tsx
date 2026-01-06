@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Users, MapPin, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import type { UserReport } from './ReportForm';
-import type { AlertType, AlertSeverity } from './DisasterAlerts';
+import type { AlertSeverity } from './DisasterAlerts';
 import { formatDateTimePH } from '../lib/datetime';
-import { formatBarangayLocation } from '../lib/barangay';
+import { formatCoordinates, PH_CENTER } from '../lib/geo';
 
 interface ReportsListProps {
   reports: UserReport[];
@@ -31,9 +31,58 @@ const getSeverityColor = (severity: AlertSeverity) => {
 
 export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [expandedReportIds, setExpandedReportIds] = useState<Record<string, boolean>>({});
+
+  const mostAffected = useMemo(() => {
+    const clusters: Array<{
+      center: [number, number];
+      sumLat: number;
+      sumLng: number;
+      count: number;
+    }> = [];
+    const radiusM = 2500;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const haversineMeters = (a: [number, number], b: [number, number]) => {
+      const dLat = toRad(b[0] - a[0]);
+      const dLng = toRad(b[1] - a[1]);
+      const lat1 = toRad(a[0]);
+      const lat2 = toRad(b[0]);
+      const s =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * 6378137 * Math.asin(Math.min(1, Math.sqrt(s)));
+    };
+
+    for (const report of reports) {
+      const coords = report.coordinates ?? PH_CENTER;
+      let matched = false;
+      for (const cluster of clusters) {
+        if (haversineMeters(coords, cluster.center) <= radiusM) {
+          cluster.count += 1;
+          cluster.sumLat += coords[0];
+          cluster.sumLng += coords[1];
+          cluster.center = [
+            cluster.sumLat / cluster.count,
+            cluster.sumLng / cluster.count,
+          ];
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        clusters.push({
+          center: coords,
+          sumLat: coords[0],
+          sumLng: coords[1],
+          count: 1,
+        });
+      }
+    }
+
+    if (clusters.length === 0) return null;
+    return clusters.reduce((best, current) => (current.count > best.count ? current : best));
+  }, [reports]);
 
   const toggleExpanded = (reportId: string) => {
     setExpandedReportIds((prev) => ({
@@ -45,14 +94,12 @@ export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
   const filteredReports = reports.filter((report) => {
     const matchesSearch =
       searchTerm === '' ||
-      report.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.reporterName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesType = filterType === 'all' || report.type === filterType;
     const matchesSeverity = filterSeverity === 'all' || report.severity === filterSeverity;
 
-    return matchesSearch && matchesType && matchesSeverity;
+    return matchesSearch && matchesSeverity;
   });
 
   return (
@@ -68,6 +115,11 @@ export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
             {reports.length} Reports
           </Badge>
         </div>
+        {mostAffected && (
+          <div className="mb-3 rounded-lg border bg-background/50 px-3 py-2 text-[11px] text-muted-foreground">
+            Most affected center: {formatCoordinates(mostAffected.center)} ({mostAffected.count})
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="relative">
@@ -80,21 +132,7 @@ export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="flood">Flood</SelectItem>
-                <SelectItem value="fire">Fire</SelectItem>
-                <SelectItem value="storm">Storm</SelectItem>
-                <SelectItem value="wind">Wind</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-
+          <div className="grid grid-cols-1 gap-3">
             <Select value={filterSeverity} onValueChange={setFilterSeverity}>
               <SelectTrigger>
                 <SelectValue placeholder="Filter by severity" />
@@ -137,12 +175,11 @@ export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <Badge className={`${getSeverityColor(report.severity)} text-white border-0 shadow-md capitalize`}>
-                        {report.severity}
-                      </Badge>
-                      <Badge variant="outline" className="capitalize border-2">
-                        {report.type}
-                      </Badge>
+                      {report.severity !== 'low' && (
+                        <Badge className={`${getSeverityColor(report.severity)} text-white border-0 shadow-md capitalize`}>
+                          {report.severity}
+                        </Badge>
+                      )}
                       {report.source === 'pagasa' && (
                         <Badge variant="secondary" className="rounded-full font-mono text-[10px] tracking-[0.18em] uppercase">
                           PAGASA
@@ -178,7 +215,7 @@ export function ReportsList({ reports, onSelectReport }: ReportsListProps) {
                     </span>
                     <span className="flex items-center gap-1.5">
                       <MapPin className="w-4 h-4 text-foreground/70" />
-                      {formatBarangayLocation(report)}
+                      {formatCoordinates(report.coordinates)}
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground">

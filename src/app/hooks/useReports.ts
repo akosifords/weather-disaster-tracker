@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../lib/api-client';
 import { getSupabaseClient } from '../lib/supabase';
 import type { UserReport } from '../components/ReportForm';
+import { formatCoordinates } from '../lib/geo';
 import type { GetReportsQuery } from '../../../api/_lib/types';
 
 interface UseReportsOptions {
@@ -138,8 +139,8 @@ function parseCoordinates(coordsStr: string): [number, number] | undefined {
 function showReportNotification(report: UserReport) {
   // Check if browser supports notifications
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(`${report.severity.toUpperCase()} Alert: ${report.type}`, {
-      body: `${report.location}: ${report.description.substring(0, 100)}`,
+    new Notification(`${report.severity.toUpperCase()} Alert`, {
+      body: `${formatCoordinates(report.coordinates)}: ${report.description.substring(0, 100)}`,
       icon: '/favicon.ico',
       tag: report.id,
     });

@@ -45,11 +45,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const computedSeverity = calculateSeverityForLocation(recentReports, validData.coordinates, now);
 
     // Convert to database record format
-    const dbRecord = userReportToDbRecord({
-      ...validData,
-      type: 'flood',
-      severity: computedSeverity,
-    });
+    const dbRecord = userReportToDbRecord(validData);
 
     // Insert into database
     const { data, error } = await supabaseAdmin
@@ -75,7 +71,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Convert back to UserReport format
-    const report = dbRecordToUserReport(data as CommunityReportRecord);
+    const report = { ...dbRecordToUserReport(data as CommunityReportRecord), severity: computedSeverity };
 
     // Broadcast to all connected clients via Supabase Broadcast (free tier)
     try {

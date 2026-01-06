@@ -13,8 +13,7 @@ import { useSubmitReport } from './hooks/useSubmitReport';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import { Button } from './components/ui/button';
 import { Plus } from 'lucide-react';
-import { coordsKey, getApproxCoordinates } from './lib/geo';
-import { coordsForReport } from './lib/barangay';
+import { coordsKey, PH_CENTER } from './lib/geo';
 import type { AreaSeverityRanking } from '../../api/_lib/types';
 import { ReportsList } from './components/ReportsList';
 
@@ -49,35 +48,32 @@ const initialReports: UserReport[] = [
   {
     id: '1',
     reporterName: 'John Smith',
-    location: 'Marikina, Metro Manila',
-    type: 'flood',
     severity: 'medium',
     description:
       'Street flooding near a main road. Water ~15–20cm deep, cars slowing down. Drainage seems overwhelmed.',
     timestamp: new Date(Date.now() - 1000 * 60 * 45),
     source: 'community',
+    coordinates: [14.6507, 121.1029],
   },
   {
     id: '2',
     reporterName: 'Sarah Johnson',
-    location: 'Tacloban City, Leyte',
-    type: 'storm',
     severity: 'high',
     description:
       'Strong winds with intermittent heavy rain. Some debris on roads and brief power fluctuations reported.',
     timestamp: new Date(Date.now() - 1000 * 60 * 20),
     source: 'community',
+    coordinates: [11.2445, 125.0032],
   },
   {
     id: '3',
     reporterName: 'Mike Chen',
-    location: 'Cebu City, Cebu',
-    type: 'wind',
     severity: 'low',
     description:
       'Moderate winds with light rain. Minor debris reported, generally passable roads.',
     timestamp: new Date(Date.now() - 1000 * 60 * 15),
     source: 'community',
+    coordinates: [10.3157, 123.8854],
   },
 ];
 
@@ -163,37 +159,13 @@ export default function App() {
       return;
     }
 
-    const normalize = (value: string) => value.trim().toLowerCase();
-    const normalizeCity = (value: string) => normalize(value.replace(/^City of\s+/i, ''));
-    const target = normalize(ranking.areaIdentifier);
-
-    const match = allReports.reduce<UserReport | null>((best, report) => {
-      const city = report.city ? normalizeCity(report.city) : '';
-      const barangay = report.barangay ? normalize(report.barangay) : '';
-      const location = normalize(report.location ?? '');
-      const label = barangay && city ? `${barangay}, ${city}` : city;
-
-      const isDirect =
-        (barangay && city && label === target) ||
-        (!barangay && city && city === target) ||
-        (location && (location.includes(target) || target.includes(location)));
-
-      if (!isDirect) return best;
-      if (!best) return report;
-      return report.timestamp > best.timestamp ? report : best;
-    }, null);
-
-    if (match) {
-      setMapFocusKey(coordsKey(coordsForReport(match)));
-      return;
-    }
-
-    setMapFocusKey(coordsKey(getApproxCoordinates(ranking.areaIdentifier)));
+    const match = allReports.find((report) => report.coordinates);
+    setMapFocusKey(coordsKey(match?.coordinates ?? PH_CENTER));
   };
 
   const handleSelectReport = (report: UserReport) => {
     setActiveTab('map');
-    setMapFocusKey(coordsKey(coordsForReport(report)));
+    setMapFocusKey(coordsKey(report.coordinates ?? PH_CENTER));
   };
 
   return (
@@ -283,7 +255,7 @@ export default function App() {
             <MapView
               reports={allReports}
               variant="full"
-              visualization="barangay"
+              visualization="areas"
               focusKey={mapFocusKey}
               pickMode={pickMode}
               pickLocation={pickedCoords}

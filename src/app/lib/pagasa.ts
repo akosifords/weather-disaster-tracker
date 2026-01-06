@@ -1,4 +1,4 @@
-import type { AlertSeverity, AlertType } from '../components/DisasterAlerts';
+import type { AlertSeverity } from '../components/DisasterAlerts';
 import type { UserReport } from '../components/ReportForm';
 
 export type ReportSource = 'community' | 'pagasa';
@@ -121,22 +121,10 @@ export function severityFromLightningAmplitude(amplitude: number | null): AlertS
   return 'low';
 }
 
-export function typeFromPagasaLightning(): AlertType {
-  return 'storm';
-}
-
 function parseFirstNumber(text: unknown): number | null {
   if (typeof text !== 'string') return null;
   const m = /-?\d+(\.\d+)?/.exec(text);
   return m ? Number(m[0]) : null;
-}
-
-export function typeFromPagasaCurrentWeather(desc: string | undefined, windKph: number | null): AlertType {
-  const d = (desc ?? '').toLowerCase();
-  if (d.includes('thunder')) return 'storm';
-  if (d.includes('rain') || d.includes('shower')) return 'storm';
-  if (windKph != null && windKph >= 30) return 'wind';
-  return 'other';
 }
 
 export function severityFromPagasaCurrentWeather(desc: string | undefined, windKph: number | null): AlertSeverity {
@@ -175,8 +163,6 @@ export function normalizePagasaLightningToReports(events: PagasaLightningEvent[]
     reports.push({
       id,
       reporterName: 'PAGASA',
-      location: `Near ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-      type: typeFromPagasaLightning(),
       severity,
       description:
         `${kindLabel} lightning detected. ` +
@@ -243,9 +229,7 @@ export function normalizePagasaCurrentWeatherToReports(map: PagasaCurrentWeather
     reports.push({
       id: `pagasa-current:${station.site_id ?? 'na'}:${station.datetime ?? ''}:${lat.toFixed(4)},${lng.toFixed(4)}`,
       reporterName: 'PAGASA',
-      location: `${site}, PH`,
       coordinates: [lat, lng],
-      type: typeFromPagasaCurrentWeather(desc, windKph),
       severity,
       description:
         `Current weather observation: ${desc || '—'}. ` +
@@ -260,5 +244,4 @@ export function normalizePagasaCurrentWeatherToReports(map: PagasaCurrentWeather
   reports.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   return reports;
 }
-
 

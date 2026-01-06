@@ -8,12 +8,6 @@ export type ReportSource = 'community' | 'pagasa';
 export interface UserReport {
   id: string;
   reporterName: string;
-  location: string;
-  barangay?: string;
-  city?: string;
-  province?: string;
-  region?: string;
-  type: AlertType;
   severity: AlertSeverity;
   description: string;
   timestamp: Date;
@@ -28,13 +22,6 @@ export interface UserReport {
 export interface CommunityReportRecord {
   id: string;
   reporter_name: string;
-  location: string;
-  barangay: string | null;
-  city: string | null;
-  province: string | null;
-  region: string | null;
-  type: AlertType;
-  severity: AlertSeverity;
   description: string;
   coordinates:
     | string
@@ -53,13 +40,6 @@ export interface CommunityReportRecord {
 // API Request/Response types
 export interface SubmitReportRequest {
   reporterName: string;
-  location: string;
-  barangay?: string;
-  city?: string;
-  province?: string;
-  region?: string;
-  type?: AlertType;
-  severity?: AlertSeverity;
   description: string;
   coordinates?: [number, number];
   needsRescue?: boolean;
@@ -72,13 +52,9 @@ export interface SubmitReportResponse {
 }
 
 export interface GetReportsQuery {
-  severity?: AlertSeverity[];
-  type?: AlertType[];
   since?: string; // ISO timestamp
   limit?: number;
   offset?: number;
-  barangay?: string;
-  city?: string;
 }
 
 export interface GetReportsResponse {
@@ -219,13 +195,7 @@ export function dbRecordToUserReport(record: CommunityReportRecord): UserReport 
   return {
     id: record.id,
     reporterName: record.reporter_name,
-    location: record.location,
-    barangay: record.barangay ?? undefined,
-    city: record.city ?? undefined,
-    province: record.province ?? undefined,
-    region: record.region ?? undefined,
-    type: record.type,
-    severity: record.severity,
+    severity: 'low',
     description: record.description,
     timestamp: new Date(record.timestamp),
     needsRescue: record.needs_rescue,
@@ -237,7 +207,7 @@ export function dbRecordToUserReport(record: CommunityReportRecord): UserReport 
 }
 
 export function userReportToDbRecord(
-  report: Omit<UserReport, 'id' | 'timestamp'>,
+  report: SubmitReportRequest & { source?: ReportSource; sourceUrl?: string; externalId?: string },
   id?: string
 ): Partial<CommunityReportRecord> {
   // Convert coordinates to PostGIS POINT format
@@ -251,13 +221,6 @@ export function userReportToDbRecord(
   return {
     ...(id && { id }),
     reporter_name: report.reporterName,
-    location: report.location,
-    barangay: report.barangay ?? null,
-    city: report.city ?? null,
-    province: report.province ?? null,
-    region: report.region ?? null,
-    type: report.type,
-    severity: report.severity,
     description: report.description,
     ...(coordinatesWKT && { coordinates: coordinatesWKT }),
     needs_rescue: report.needsRescue ?? false,
