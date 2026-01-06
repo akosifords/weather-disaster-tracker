@@ -43,15 +43,15 @@ export function validateReportSubmission(
     errors.push({ field: 'location', message: 'Location must be less than 500 characters' });
   }
 
-  // Type
+  // Type (optional)
   const validTypes: AlertType[] = ['flood', 'fire', 'storm', 'wind', 'other'];
-  if (!report.type || !validTypes.includes(report.type as AlertType)) {
+  if (report.type !== undefined && !validTypes.includes(report.type as AlertType)) {
     errors.push({ field: 'type', message: `Type must be one of: ${validTypes.join(', ')}` });
   }
 
-  // Severity
+  // Severity (optional)
   const validSeverities: AlertSeverity[] = ['low', 'medium', 'high', 'critical'];
-  if (!report.severity || !validSeverities.includes(report.severity as AlertSeverity)) {
+  if (report.severity !== undefined && !validSeverities.includes(report.severity as AlertSeverity)) {
     errors.push({ field: 'severity', message: `Severity must be one of: ${validSeverities.join(', ')}` });
   }
 
@@ -115,8 +115,8 @@ export function validateReportSubmission(
     data: {
       reporterName: (report.reporterName as string).trim(),
       location: (report.location as string).trim(),
-      type: report.type as AlertType,
-      severity: report.severity as AlertSeverity,
+      type: report.type as AlertType | undefined,
+      severity: report.severity as AlertSeverity | undefined,
       description: (report.description as string).trim(),
       coordinates: report.coordinates as [number, number] | undefined,
       barangay: report.barangay ? (report.barangay as string).trim() : undefined,

@@ -47,8 +47,10 @@ export interface UserReport {
   externalId?: string;
 }
 
+export type ReportFormSubmission = Omit<UserReport, 'id' | 'timestamp' | 'type' | 'severity'>;
+
 interface ReportFormProps {
-  onSubmit: (report: Omit<UserReport, 'id' | 'timestamp'>) => void;
+  onSubmit: (report: ReportFormSubmission) => void;
   onRequestMapPick?: () => void;
   pickLocation?: [number, number] | null;
 }
@@ -140,8 +142,6 @@ export function ReportForm({ onSubmit, onRequestMapPick, pickLocation }: ReportF
       reporterName: 'Anonymous',
       location: `${specificLocation.trim()}, ${city.trim()}`,
       city: city.trim(),
-      type: 'flood',
-      severity: 'low',
       description,
       needsRescue,
       coordinates,

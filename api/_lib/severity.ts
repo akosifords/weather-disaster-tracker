@@ -179,6 +179,37 @@ export function calculateBounds(
   };
 }
 
+const haversineMeters = (a: [number, number], b: [number, number]) => {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6378137 * Math.asin(Math.min(1, Math.sqrt(s)));
+};
+
+/**
+ * Calculate severity for a point based on nearby reports (heatmap).
+ */
+export function calculateSeverityForLocation(
+  reports: UserReport[],
+  coords: [number, number] | undefined,
+  now: Date = new Date(),
+  radiusMeters: number = 2500
+): AlertSeverity {
+  if (!coords) return 'low';
+  const nearby = reports.filter((report) => {
+    if (!report.coordinates || report.coordinates.length !== 2) return false;
+    return haversineMeters(coords, report.coordinates) <= radiusMeters;
+  });
+  if (nearby.length === 0) return 'low';
+  const score = calculateSeverityScore(nearby, now);
+  return assignSeverityLevel(score, nearby, now);
+}
+
 interface AreaGroup {
   identifier: string;
   type: 'cluster';

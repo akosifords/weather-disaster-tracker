@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { DisasterAlert } from './components/DisasterAlerts';
-import type { UserReport } from './components/ReportForm';
+import type { ReportFormSubmission, UserReport } from './components/ReportForm';
 import { MapView } from './components/MapView';
 // SevereReportsOverlay intentionally hidden on main map view
 import { toast } from 'sonner';
@@ -126,7 +126,7 @@ export default function App() {
   const allReports = communityReports;
 
   // (Intentionally map-first landing; dashboard/report submission UI removed from landing)
-  const handleSubmitReport = async (report: Omit<UserReport, 'id' | 'timestamp'>) => {
+  const handleSubmitReport = async (report: ReportFormSubmission) => {
     const saved = await submitReport(report);
     if (saved) {
       toast.success('Report submitted', {

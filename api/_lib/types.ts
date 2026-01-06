@@ -58,8 +58,8 @@ export interface SubmitReportRequest {
   city?: string;
   province?: string;
   region?: string;
-  type: AlertType;
-  severity: AlertSeverity;
+  type?: AlertType;
+  severity?: AlertSeverity;
   description: string;
   coordinates?: [number, number];
   needsRescue?: boolean;

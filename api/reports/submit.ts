@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { withCors } from '../_lib/cors.js';
 import { supabaseAdmin } from '../_lib/supabase.js';
 import { validateReportSubmission } from '../_lib/validation.js';
+import { calculateSeverityForLocation } from '../_lib/severity.js';
 import { dbRecordToUserReport, userReportToDbRecord } from '../_lib/types.js';
 import type { SubmitReportResponse, CommunityReportRecord } from '../_lib/types.js';
 
@@ -26,8 +27,29 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: validData } = validation;
 
+    const now = new Date();
+    const cutoffTime = new Date(now.getTime() - 168 * 60 * 60 * 1000);
+
+    const { data: recentData, error: recentError } = await supabaseAdmin
+      .from('community_reports')
+      .select('*')
+      .is('deleted_at', null)
+      .gte('timestamp', cutoffTime.toISOString())
+      .order('timestamp', { ascending: false });
+
+    if (recentError) {
+      console.error('Failed to load recent reports for severity calculation:', recentError);
+    }
+
+    const recentReports = (recentData as CommunityReportRecord[] | null)?.map(dbRecordToUserReport) ?? [];
+    const computedSeverity = calculateSeverityForLocation(recentReports, validData.coordinates, now);
+
     // Convert to database record format
-    const dbRecord = userReportToDbRecord(validData);
+    const dbRecord = userReportToDbRecord({
+      ...validData,
+      type: 'flood',
+      severity: computedSeverity,
+    });
 
     // Insert into database
     const { data, error } = await supabaseAdmin
