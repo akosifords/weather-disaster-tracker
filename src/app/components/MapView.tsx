@@ -22,6 +22,8 @@ interface MapViewProps {
   onPickLocation?: (coords: [number, number]) => void;
 }
 
+const ADMIN_BOUNDARY_URL = '/geo/phl-adm3-municities-simplified.geojson';
+
 
 const getSeverityColor = (severity: AlertSeverity): string => {
   switch (severity) {
@@ -221,6 +223,7 @@ export function MapView({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const [mapZoom, setMapZoom] = useState<number>(6);
   const pickMarkerRef = useRef<L.CircleMarker | null>(null);
+  const boundaryLayerRef = useRef<L.GeoJSON | null>(null);
 
   const markersRef = useRef<
     Map<
@@ -473,9 +476,14 @@ export function MapView({
       worldCopyJump: false,
     }).setView(PH_CENTER, 6);
     
-    const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const stadiaKey = import.meta.env.VITE_STADIA_API_KEY || '';
+    const tileUrl = `https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png${
+      stadiaKey ? `?api_key=${stadiaKey}` : ''
+    }`;
     L.tileLayer(tileUrl, {
       attribution:
+        '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> ' +
+        '&copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' +
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 20,
     }).addTo(map);
@@ -490,6 +498,44 @@ export function MapView({
       map.off('zoomend', onZoom);
       map.remove();
       mapInstanceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || boundaryLayerRef.current) return;
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const resp = await fetch(ADMIN_BOUNDARY_URL);
+        if (!resp.ok) throw new Error(`Boundary load failed: ${resp.status}`);
+        const data = (await resp.json()) as GeoJSON.GeoJsonObject;
+        if (cancelled) return;
+
+        const layer = L.geoJSON(data, {
+          style: {
+            color: '#64748b',
+            weight: 0.8,
+            opacity: 0.7,
+            fillOpacity: 0,
+          },
+          interactive: false,
+        });
+        layer.addTo(map);
+        boundaryLayerRef.current = layer;
+      } catch (err) {
+        console.warn('Failed to load admin boundaries', err);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+      if (boundaryLayerRef.current) {
+        boundaryLayerRef.current.remove();
+        boundaryLayerRef.current = null;
+      }
     };
   }, []);
 
