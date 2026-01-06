@@ -473,15 +473,9 @@ export function MapView({
       worldCopyJump: false,
     }).setView(PH_CENTER, 6);
     
-    // Stadia dark basemap to match ops UI
-    const stadiaKey = import.meta.env.VITE_STADIA_API_KEY || '';
-    const tileUrl = `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png${
-      stadiaKey ? `?api_key=${stadiaKey}` : ''
-    }`;
+    const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     L.tileLayer(tileUrl, {
       attribution:
-        '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> ' +
-        '&copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' +
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 20,
     }).addTo(map);

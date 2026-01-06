@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { DisasterAlert } from './components/DisasterAlerts';
 import type { ReportFormSubmission, UserReport } from './components/ReportForm';
 import { MapView } from './components/MapView';
 // SevereReportsOverlay intentionally hidden on main map view
@@ -17,68 +16,7 @@ import { coordsKey, PH_CENTER } from './lib/geo';
 import type { AreaSeverityRanking } from '../../api/_lib/types';
 import { ReportsList } from './components/ReportsList';
 
-// Mock disaster alerts
-const initialAlerts: DisasterAlert[] = [
-  {
-    id: '1',
-    type: 'storm',
-    title: 'Severe Thunderstorm Warning (PAGASA)',
-    description:
-      'Heavy rainfall with gusty winds expected. Avoid flood-prone roads and secure loose objects.',
-    severity: 'high',
-    location: 'Metro Manila',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    active: true,
-  },
-  {
-    id: '2',
-    type: 'flood',
-    title: 'Flood Advisory',
-    description:
-      'Rising water levels possible in low-lying areas. Monitor local advisories and avoid unnecessary travel.',
-    severity: 'medium',
-    location: 'Marikina, Metro Manila',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    active: true,
-  },
-];
-
-// Mock user reports
-const initialReports: UserReport[] = [
-  {
-    id: '1',
-    reporterName: 'John Smith',
-    severity: 'medium',
-    description:
-      'Street flooding near a main road. Water ~15–20cm deep, cars slowing down. Drainage seems overwhelmed.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45),
-    source: 'community',
-    coordinates: [14.6507, 121.1029],
-  },
-  {
-    id: '2',
-    reporterName: 'Sarah Johnson',
-    severity: 'high',
-    description:
-      'Strong winds with intermittent heavy rain. Some debris on roads and brief power fluctuations reported.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 20),
-    source: 'community',
-    coordinates: [11.2445, 125.0032],
-  },
-  {
-    id: '3',
-    reporterName: 'Mike Chen',
-    severity: 'low',
-    description:
-      'Moderate winds with light rain. Minor debris reported, generally passable roads.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15),
-    source: 'community',
-    coordinates: [10.3157, 123.8854],
-  },
-];
-
 export default function App() {
-  const [alerts, setAlerts] = useState<DisasterAlert[]>(initialAlerts);
   const [mapFocusKey, setMapFocusKey] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [pickMode, setPickMode] = useState(false);
@@ -95,8 +33,7 @@ export default function App() {
     enableRealtime: true, // Enable Supabase Realtime (WebSocket subscriptions for instant updates)
   });
 
-  // Use database reports if available, otherwise fall back to initial mock data
-  const communityReports = dbReports.length > 0 ? dbReports : initialReports;
+  const communityReports = dbReports;
 
   // Fetch area severity rankings (no auto-refresh, will update when new reports arrive via Realtime)
   const { rankings: areaSeverity, loading: severityLoading } = useAreaSeverity({
