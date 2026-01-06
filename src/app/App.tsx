@@ -106,7 +106,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen min-h-[100dvh] bg-background text-foreground flex flex-col [background-image:radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.05)_1px,transparent_0)] [background-size:22px_22px]">
+    <div className="h-screen min-h-[100dvh] bg-background text-foreground flex flex-col [background-image:radial-gradient(circle_at_1px_1px,rgba(31,41,55,0.08)_1px,transparent_0)] [background-size:22px_22px]">
       <Toaster />
       
       {/* Header */}
@@ -147,30 +147,30 @@ export default function App() {
                   Report
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-gradient-to-br from-neutral-950 via-neutral-950 to-neutral-900 text-white border border-neutral-800 p-0 sm:max-w-2xl">
+              <DialogContent className="bg-card text-foreground border border-border p-0 sm:max-w-2xl">
                 <DialogHeader className="space-y-2 px-4 pt-6">
                   <div className="flex items-center justify-between">
-                    <DialogTitle className="font-mono tracking-[0.28em] uppercase text-xs text-neutral-400">
+                    <DialogTitle className="font-mono tracking-[0.28em] uppercase text-xs text-muted-foreground">
                       Emergency Report
                     </DialogTitle>
                   </div>
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-2xl font-semibold tracking-tight text-white">
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                         Emergency Report
                       </h2>
-                      <p className="mt-1 text-sm text-neutral-400">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Quick details. Mark rescue if needed.
                       </p>
                     </div>
-                    <div className="hidden sm:flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-red-200">
+                    <div className="hidden sm:flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-destructive">
                       Priority Signal
                     </div>
                   </div>
                 </DialogHeader>
                 <div className="px-4 pb-6">
-                  <div className="mb-4 grid gap-2 rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 text-xs text-neutral-400">
-                    <div className="font-mono uppercase tracking-[0.18em] text-neutral-500">Safety</div>
+                  <div className="mb-4 grid gap-2 rounded-xl border border-border bg-muted/40 p-4 text-xs text-muted-foreground">
+                    <div className="font-mono uppercase tracking-[0.18em] text-muted-foreground">Safety</div>
                     <div>Only submit if safe. For life-threatening emergencies, contact local authorities.</div>
                   </div>
                   <ReportForm

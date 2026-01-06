@@ -476,10 +476,15 @@ export function MapView({
       worldCopyJump: false,
     }).setView(PH_CENTER, 6);
     
-    const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const stadiaKey = import.meta.env.VITE_STADIA_API_KEY as string | undefined;
+    const tileUrl = stadiaKey
+      ? `https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${stadiaKey}`
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const attribution = stadiaKey
+      ? '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
     L.tileLayer(tileUrl, {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      attribution,
       maxZoom: 20,
     }).addTo(map);
 
